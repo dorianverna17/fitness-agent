@@ -1,0 +1,286 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#1f5f8b"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes"><title>Fuel & Form</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Figtree:wght@400;600;800&display=swap">
+<style>
+:root{--bg:#eef1f4;--card:#fff;--ink:#14212b;--mut:#5d6b78;--acc:#1f5f8b;--accink:#fff;--soft:#e2ecf4;--line:#d8dfe6;--mark:#5b4b8a;
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0f171d;--card:#172430;--ink:#e6edf2;--mut:#93a3b1;--acc:#6fb1e0;--accink:#0b1a25;--soft:#1e3242;--line:#263847;--mark:#b3a4ea}}
+:root[data-theme="dark"]{--bg:#0f171d;--card:#172430;--ink:#e6edf2;--mut:#93a3b1;--acc:#6fb1e0;--accink:#0b1a25;--soft:#1e3242;--line:#263847;--mark:#b3a4ea}
+*,*:before,*:after{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{margin:0;background:var(--bg);color:var(--ink);font:400 16px/1.45 Figtree,system-ui,-apple-system,Segoe UI,sans-serif}
+main{max-width:560px;margin:0 auto;padding:16px 14px 80px}
+h1{font-size:26px;font-weight:800;margin:6px 0 2px;letter-spacing:-.02em}
+h2{font-size:17px;font-weight:800;margin:0 0 10px}
+.sub{color:var(--mut);margin:0 0 14px;font-size:14px}
+.tabs{display:flex;gap:6px;background:var(--soft);padding:4px;border-radius:12px;margin:12px 0}
+.tabs button{flex:1;border:0;background:transparent;color:var(--mut);font:600 15px Figtree,system-ui,sans-serif;padding:9px;border-radius:9px}
+.tabs button[aria-selected=true]{background:var(--card);color:var(--ink)}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin:0 0 12px}
+label{display:block;font-size:13px;font-weight:600;color:var(--mut);margin:10px 0 4px}
+input,textarea,select{width:100%;font:400 16px Figtree,system-ui,sans-serif;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:9px;padding:9px 10px}
+textarea{resize:vertical}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.row3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+button.pri{background:var(--acc);color:var(--accink);border:0;border-radius:10px;padding:11px 14px;font:700 16px Figtree,system-ui,sans-serif;width:100%;margin-top:10px}
+button.sec{background:var(--soft);color:var(--ink);border:0;border-radius:10px;padding:9px 12px;font:600 14px Figtree,system-ui,sans-serif}
+button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+.photo{display:flex;align-items:center;justify-content:center;border:1.5px dashed var(--acc);color:var(--acc);border-radius:12px;padding:22px 10px;font-weight:700;margin:0;cursor:pointer;text-align:center}
+.photo input{display:none}
+.mut{color:var(--mut);font-size:14px}
+.meal{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-top:1px solid var(--line)}
+.meal:first-of-type{border-top:0}
+.meal b{font-weight:600}
+.x{background:none;border:0;color:var(--mut);font-size:20px;padding:0 6px}
+.chk{display:flex;gap:10px;align-items:center;margin-top:12px}
+.chk input{width:22px;height:22px}
+.chk span{font-size:15px}
+.big{font-size:30px;font-weight:800;letter-spacing:-.02em}
+table{width:100%;border-collapse:collapse;font-size:14px}
+td,th{padding:7px 4px;border-top:1px solid var(--line);text-align:left}
+th{color:var(--mut);font-weight:600;border-top:0}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mark);margin-right:5px}
+.scroll{overflow-x:auto}
+.coach{white-space:pre-wrap;font-size:15px;line-height:1.55}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:20px;font-size:14px;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.on{opacity:1}
+</style></head>
+<body><main>
+<h1>Fuel & Form</h1>
+<p class="sub">Photos in, estimates out. Built around lifting, recovery and steady eating.</p>
+<input type="date" id="day" aria-label="Day">
+<div class="tabs" role="tablist">
+<button role="tab" data-t="today">Today</button><button role="tab" data-t="trend">Trend</button><button role="tab" data-t="coach">Coach</button></div>
+<div id="view"></div>
+</main>
+<div class="toast" id="toast"></div>
+<script>
+const $=s=>document.querySelector(s);
+const esc=s=>String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const num=v=>{const n=parseFloat(String(v==null?'':v).replace(',','.'));return isNaN(n)?null:n};
+const r1=n=>Math.round(n*10)/10;
+const LS='fuelform_v1';
+function todayKey(){const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+let store={},cur=todayKey(),tab='today',photo=null,est=null;
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),1800)}
+function getE(k){return store[k]||{date:k,meals:[],base:null}}
+function totals(e){const t={kcal:0,p:0,c:0,f:0,fi:0,s:0};[e.base].concat(e.meals||[]).forEach(m=>{if(!m)return;t.kcal+=m.kcal||0;t.p+=m.p||0;t.c+=m.c||0;t.f+=m.f||0;t.fi+=m.fi||0;t.s+=m.s||0});return t}
+async function persist(e){
+ store[e.date]=e;
+ try{localStorage.setItem(LS,JSON.stringify(store))}catch(_){}
+}
+const KEYLS='fuelform_key';
+const ls=(k,d)=>{try{return localStorage.getItem(k)||d}catch(_){return d}};
+const prov=()=>ls('fuelform_prov','gemini');
+const gModel=()=>ls('fuelform_gm','gemini-3.1-flash-lite');
+const keyName=p=>p==='claude'?KEYLS:KEYLS+'_gemini';
+const getKey=()=>ls(keyName(prov()),'');
+const toB64=b=>new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(String(r.result).split(',')[1]);r.onerror=rej;r.readAsDataURL(b)});
+async function aiClaude(prompt,opts){
+ const key=getKey();if(!key)throw {code:'nokey'};
+ const content=[];
+ if(opts&&opts.image)content.push({type:'image',source:{type:'base64',media_type:'image/jpeg',data:await toB64(opts.image)}});
+ content.push({type:'text',text:prompt});
+ let r;try{r=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'content-type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-5-5',max_tokens:1000,messages:[{role:'user',content}]})})}catch(_){throw {code:'network'}}
+ if(!r.ok)throw {code:r.status===401?'badkey':'http'};
+ const d=await r.json();return d.content.filter(c=>c.type==='text').map(c=>c.text).join('\n');
+}
+async function aiGemini(prompt,opts){
+ const key=getKey();if(!key)throw {code:'nokey'};
+ const parts=[];
+ if(opts&&opts.image)parts.push({inline_data:{mime_type:'image/jpeg',data:await toB64(opts.image)}});
+ parts.push({text:prompt});
+ const gc={temperature:.2};if(opts&&opts.json)gc.responseMimeType='application/json';
+ let r;try{r=await fetch('https://generativelanguage.googleapis.com/v1beta/models/'+encodeURIComponent(gModel())+':generateContent',{method:'POST',headers:{'content-type':'application/json','x-goog-api-key':key},body:JSON.stringify({contents:[{parts}],generationConfig:gc})})}catch(_){throw {code:'network'}}
+ if(!r.ok)throw {code:r.status===429?'quota':(r.status===400||r.status===401||r.status===403)?'badkey':'http'};
+ const d=await r.json();const t=((d.candidates||[])[0]||{}).content;
+ if(!t||!t.parts)throw {code:'http'};
+ return t.parts.map(p=>p.text||'').join('\n');
+}
+const ai=(p,o)=>prov()==='claude'?aiClaude(p,o):aiGemini(p,o);
+async function aiJson(p,o){const t=await ai(p,Object.assign({},o,{json:true}));return JSON.parse(t.replace(/```json|```/g,'').trim())}
+function errMsg(e){const c=e&&e.code;return c==='nokey'?'Add your API key in the Coach tab first.':c==='badkey'?'That key or model name was rejected. Check both in the Coach tab.':c==='quota'?'Free limit reached, or that model is not free. Wait a bit or try another model name in the Coach tab.':c==='network'?'No connection. Check your internet and try again.':'The request failed. Try again in a moment.'}
+function init(){
+ try{store=JSON.parse(localStorage.getItem(LS)||'{}')}catch(_){store={}}
+ $('#day').value=cur;render();
+}
+document.addEventListener('click',e=>{
+ const t=e.target.closest('[data-t]');if(t){tab=t.dataset.t;render()}
+});
+$('#day').addEventListener('change',e=>{cur=e.target.value||todayKey();est=null;photo=null;render()});
+
+function render(){
+ document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===tab));
+ $('#view').innerHTML=tab==='today'?viewToday():tab==='trend'?viewTrend():viewCoach();
+ if(tab==='today')bindToday();
+ if(tab==='trend')bindTrend();
+ if(tab==='coach')bindCoach();
+}
+
+/* ---------- Today ---------- */
+function viewToday(){
+ const e=getE(cur),t=totals(e);
+ const meals=(e.meals||[]).map((m,i)=>`<div class="meal"><div><b>${esc(m.name)}</b><div class="mut">${Math.round(m.kcal)} kcal · P ${r1(m.p||0)} · C ${r1(m.c||0)} · F ${r1(m.f||0)} (sat ${r1(m.s||0)}) · Fiber ${r1(m.fi||0)}</div></div><button class="x" data-del="${i}" aria-label="Remove meal">×</button></div>`).join('');
+ return `
+<div class="card"><h2>Add a meal</h2>
+<label class="photo"><input type="file" accept="image/*" id="pf"><span id="pl">${photo?'Photo ready. Tap to change':'Take or choose a photo'}</span></label>
+<label for="mnote">Weights or details (optional)</label>
+<textarea id="mnote" rows="2" placeholder="e.g. about 180 g cooked rice, 2 tsp olive oil"></textarea>
+<button class="pri" id="est">Estimate</button>
+<div id="estout">${est?estHtml():''}</div></div>
+<div class="card"><h2>Logged today</h2>${meals||'<p class="mut">No meals yet.</p>'}
+${e.base?`<p class="mut">Imported day total: ${Math.round(e.base.kcal)} kcal</p>`:''}
+<p class="mut" style="margin-top:10px">Day total: <b>${Math.round(t.kcal)} kcal</b> · protein ${Math.round(t.p)} g · carbs ${Math.round(t.c)} g · fat ${Math.round(t.f)} g (sat ${Math.round(t.s)} g) · fiber ${Math.round(t.fi)} g</p></div>
+<div class="card" id="det"><h2>Day details</h2>
+<div class="row"><div><label for="w">Weight (kg)</label><input id="w" inputmode="decimal" value="${esc(e.weight)}"></div>
+<div><label for="st">Steps</label><input id="st" inputmode="numeric" value="${esc(e.steps)}"></div></div>
+<div class="row"><div><label for="sl">Sleep (hours)</label><input id="sl" inputmode="decimal" value="${esc(e.sleep)}"></div>
+<div><label for="hu">Hunger before sleep (1-10)</label><input id="hu" inputmode="numeric" value="${esc(e.hunger)}"></div></div>
+<label for="tr">Training</label><textarea id="tr" rows="3" placeholder="e.g. legs & abs, 5 x legs, 4 x abs, heavy. 60 min spin bike">${esc(e.training)}</textarea>
+<label for="nt">Notes</label><textarea id="nt" rows="2" placeholder="Anything about the day">${esc(e.notes)}</textarea>
+<label class="chk"><input type="checkbox" id="bg" ${e.binge?'checked':''}><span>A binge episode happened. Logging it is just data, not a fail.</span></label></div>`;
+}
+function estHtml(){
+ const x=est;if(x.error)return `<p class="mut">${esc(x.error)}</p>`;
+ return `<div style="margin-top:12px"><b>${esc(x.name)}</b>
+<p class="mut">Likely range ${Math.round(x.low)}-${Math.round(x.high)} kcal · confidence ${esc(x.conf)}${x.items?'<br>'+esc(x.items):''}</p>
+<div class="row3"><div><label>kcal</label><input id="ek" inputmode="decimal" value="${Math.round(x.kcal)}"></div><div><label>Protein g</label><input id="ep" inputmode="decimal" value="${r1(x.p)}"></div><div><label>Carbs g (no fiber)</label><input id="ec" inputmode="decimal" value="${r1(x.c)}"></div></div>
+<div class="row3"><div><label>Fat g</label><input id="ef" inputmode="decimal" value="${r1(x.f)}"></div><div><label>Sat. fat g</label><input id="es" inputmode="decimal" value="${r1(x.s)}"></div><div><label>Fiber g</label><input id="ei" inputmode="decimal" value="${r1(x.fi)}"></div></div>
+<label>Name</label><input id="en" value="${esc(x.name)}">
+<button class="pri" id="addm">Add to this day</button></div>`;
+}
+function bindToday(){
+ $('#pf').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{photo=await shrink(f);$('#pl').textContent='Photo ready. Tap to change'}catch(_){toast('Could not read that photo')}};
+ $('#est').onclick=doEst;
+ const am=$('#addm');if(am)am.onclick=addMeal;
+ document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const e=getE(cur);e.meals.splice(+b.dataset.del,1);persist(e);render()});
+ $('#det').addEventListener('change',()=>{
+  const e=getE(cur);e.weight=num($('#w').value);e.steps=num($('#st').value);e.sleep=num($('#sl').value);e.hunger=num($('#hu').value);
+  e.training=$('#tr').value;e.notes=$('#nt').value;e.binge=$('#bg').checked;persist(e);toast('Saved');
+ });
+}
+async function shrink(file){
+ const bmp=await createImageBitmap(file);const s=Math.min(1,1024/Math.max(bmp.width,bmp.height));
+ const c=document.createElement('canvas');c.width=Math.round(bmp.width*s);c.height=Math.round(bmp.height*s);
+ c.getContext('2d').drawImage(bmp,0,0,c.width,c.height);
+ return new Promise((res,rej)=>c.toBlob(b=>b?res(b):rej(),'image/jpeg',.82));
+}
+async function doEst(){
+ const note=$('#mnote').value.trim();const out=$('#estout');
+ if(!photo&&!note){out.innerHTML='<p class="mut">Add a photo or a description first.</p>';return}
+ if(!getKey()){out.innerHTML='<p class="mut">Add a key in the Coach tab to get estimates. You can still add a meal by hand below.</p>'+manualBtn();const mb=$('#manual');if(mb)mb.onclick=manual;return}
+ out.innerHTML='<p class="mut">Estimating…</p>';
+ const prompt=`You estimate the nutrition of one meal from a photo and/or the user's note. Be realistic about hidden oil, sauces and portion size; use any weights the user gives as truth.
+User note: ${note||'(none)'}
+Use EU labelling conventions: "carbs" means available carbohydrates, EXCLUDING fiber, and fiber is reported separately. "sat" is saturated fat in grams, included within "f". Make kcal consistent with 4 per g protein, 4 per g carbs, 9 per g fat and 2 per g fiber.
+Return ONLY JSON: {"name":"short meal name","items":"one line listing each item with estimated grams","kcal":number,"low":number,"high":number,"p":protein_g,"c":carbs_g,"f":fat_g,"fi":fiber_g,"sat":saturated_fat_g,"conf":"low|medium|high"}`;
+ try{
+  const r=await aiJson(prompt,{image:photo});
+  est={name:r.name||'Meal',items:r.items||'',kcal:+r.kcal||0,low:+r.low||+r.kcal||0,high:+r.high||+r.kcal||0,p:+r.p||0,c:+r.c||0,f:+r.f||0,fi:+r.fi||0,s:+r.sat||0,conf:r.conf||'medium'};
+ }catch(err){est={error:errMsg(err)}}
+ out.innerHTML=estHtml();const am=$('#addm');if(am)am.onclick=addMeal;
+}
+function manualBtn(){return '<button class="sec" id="manual" style="margin-top:8px">Enter a meal by hand</button>'}
+function manual(){est={name:'Meal',items:'',kcal:0,low:0,high:0,p:0,c:0,f:0,fi:0,s:0,conf:'manual'};$('#estout').innerHTML=estHtml();$('#addm').onclick=addMeal}
+function addMeal(){
+ const e=getE(cur);e.meals=e.meals||[];
+ e.meals.push({name:$('#en').value||'Meal',kcal:num($('#ek').value)||0,p:num($('#ep').value)||0,c:num($('#ec').value)||0,f:num($('#ef').value)||0,fi:num($('#ei').value)||0,s:num($('#es').value)||0});
+ persist(e);est=null;photo=null;render();toast('Meal added');
+}
+
+/* ---------- Trend ---------- */
+function days(){return Object.keys(store).sort()}
+function weightTrend(){
+ const ks=days().filter(k=>store[k].weight!=null),out=[];
+ ks.forEach(k=>{const t=new Date(k).getTime();const w=ks.filter(j=>{const d=(t-new Date(j).getTime())/864e5;return d>=0&&d<7}).map(j=>store[j].weight);out.push({k,v:w.reduce((a,b)=>a+b,0)/w.length})});
+ return out;
+}
+function fmtD(k){const p=k.split('-');return +p[2]+'/'+ +p[1]}
+function viewTrend(){
+ const wt=weightTrend();let svg='<p class="mut">Add a few weigh-ins to see your trend.</p>';
+ if(wt.length>1){
+  const vs=wt.map(x=>x.v),mn=Math.min(...vs)-.5,mx=Math.max(...vs)+.5,W=520,H=130;
+  const pts=wt.map((x,i)=>(i/(wt.length-1)*(W-20)+10)+','+(H-10-(x.v-mn)/(mx-mn)*(H-20))).join(' ');
+  svg=`<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Weight trend"><polyline points="${pts}" fill="none" stroke="var(--acc)" stroke-width="3" stroke-linejoin="round"/></svg>`;
+ }
+ const last=wt.length?wt[wt.length-1]:null;
+ const rows=days().slice(-14).reverse().map(k=>{const e=store[k],t=totals(e);
+  return `<tr><td>${e.binge?'<span class="dot"></span>':''}${fmtD(k)}</td><td>${t.kcal?Math.round(t.kcal):'-'}</td><td>${e.steps!=null?Math.round(e.steps/1000)+'k':'-'}</td><td>${e.sleep!=null?e.sleep:'-'}</td></tr>`}).join('');
+ return `<div class="card"><h2>Weight, 7-day average</h2>${last?`<div class="big">${r1(last.v)} kg</div>`:''}${svg}
+<p class="mut">Single weigh-ins swing with water and food. Judge direction over weeks, not days.</p></div>
+<div class="card"><h2>Last 14 days</h2><div class="scroll"><table><tr><th>Day</th><th>kcal</th><th>Steps</th><th>Sleep h</th></tr>${rows||'<tr><td colspan="4" class="mut">Nothing logged yet.</td></tr>'}</table></div>
+<p class="mut"><span class="dot"></span>marks a binge episode</p></div>
+<div class="card"><h2>Your sheet</h2><p class="mut">Everything is stored in this browser on this phone, so export a backup now and then. Import a CSV downloaded from your original sheet (File, Download, CSV). Your original is never changed. Export gives a new CSV with the same columns.</p>
+<label class="photo" style="padding:14px"><input type="file" accept=".csv,text/csv" id="imp"><span>Import CSV</span></label>
+<button class="pri" id="exp">Export CSV</button></div>`;
+}
+function bindTrend(){$('#imp').onchange=doImport;$('#exp').onclick=doExport}
+function parseCSV(t){const rows=[];let r=[],f='',q=false;
+ for(let i=0;i<t.length;i++){const c=t[i];
+  if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
+  else if(c==='"')q=true;else if(c===','){r.push(f);f=''}
+  else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;r.push(f);f='';rows.push(r);r=[]}else f+=c}
+ if(f||r.length){r.push(f);rows.push(r)}return rows;
+}
+async function doImport(ev){
+ const f=ev.target.files[0];if(!f)return;
+ const rows=parseCSV(await f.text()),h=rows[0].map(x=>x.trim().toLowerCase());
+ const ix=p=>h.findIndex(x=>x.startsWith(p));
+ const C={d:ix('day'),w:ix('weight'),tr:ix('training'),st:ix('steps'),k:ix('kcal'),p:ix('protein'),c:ix('carbs'),f:ix('fat'),fi:ix('fiber'),hu:ix('hunger'),sl:ix('sleep'),b:ix('binge'),n:ix('notes'),s:ix('sat')};
+ let n=0;
+ for(const r of rows.slice(1)){
+  const m=(r[C.d]||'').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)continue;
+  const k=m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'),e=getE(k),g=i=>i<0?null:num(r[i]);
+  if(g(C.w)!=null)e.weight=g(C.w);if(g(C.st)!=null)e.steps=g(C.st);if(g(C.sl)!=null)e.sleep=g(C.sl);if(g(C.hu)!=null)e.hunger=g(C.hu);
+  if(C.tr>=0&&r[C.tr]&&r[C.tr]!=='no data')e.training=r[C.tr];
+  if(C.n>=0&&r[C.n])e.notes=r[C.n];
+  if(C.b>=0)e.binge=/^yes/i.test((r[C.b]||'').trim());
+  if(g(C.k)!=null)e.base={kcal:g(C.k)||0,p:g(C.p)||0,c:g(C.c)||0,f:g(C.f)||0,fi:g(C.fi)||0,s:g(C.s)||0};
+  await persist(e);n++;
+ }
+ toast(n+' days imported');render();
+}
+function doExport(){
+ const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+ const hd=['Day','Weight (kg)','Training','Steps','kcal','Protein','Carbs','Fat','Fiber','Hunger (Before Sleep 1-10)','Sleep Time (hours)','Binge','Notes on what was eaten','Saturated fat'];
+ const lines=[hd.map(q).join(',')];
+ days().forEach(k=>{const e=store[k],t=totals(e),p=k.split('-'),meals=(e.meals||[]).map(m=>m.name).join('; ');
+  lines.push([+p[2]+'/'+ +p[1]+'/'+p[0],e.weight,e.training,e.steps,t.kcal||'',t.p||'',t.c||'',t.f||'',t.fi||'',e.hunger,e.sleep,e.binge?'Yes':'No',[meals,e.notes].filter(Boolean).join(' | '),t.s||''].map(q).join(','))});
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([lines.join('\n')],{type:'text/csv'}));a.download='fuel-and-form-log.csv';document.body.appendChild(a);a.click();a.remove();
+}
+
+/* ---------- Coach ---------- */
+function viewCoach(){
+ return `<div class="card"><h2>Weekly review</h2><p class="mut">Looks at your last 14 days of training, sleep, steps and eating, and suggests next steps. It never sets calorie targets or suggests making up for a big day.</p>
+<button class="pri" id="rev">Review my last 14 days</button><div id="rout" class="coach" style="margin-top:12px"></div></div>
+<div class="card"><h2>AI provider</h2><p class="mut">Used for photo estimates and the review. Keys stay on this phone and are sent only to the provider you pick. Gemini has a free tier (limits and eligible models change, so check Google's terms and your usage in AI Studio). Get a key at aistudio.google.com.</p>
+<label for="prov">Provider</label><select id="prov"><option value="gemini" ${prov()==='gemini'?'selected':''}>Gemini (free tier)</option><option value="claude" ${prov()==='claude'?'selected':''}>Claude (paid API)</option></select>
+<label for="gm">Gemini model name</label><input id="gm" value="${esc(gModel())}" autocomplete="off">
+<label for="key">API key</label><input id="key" type="password" autocomplete="off" placeholder="paste key" value="${esc(getKey())}">
+<div class="row"><button class="pri" id="ks">Save</button><button class="pri" id="kc" style="background:var(--soft);color:var(--ink)">Remove key</button></div></div>`;
+}
+function bindCoach(){$('#rev').onclick=doReview;
+ $('#prov').onchange=()=>{try{localStorage.setItem('fuelform_prov',$('#prov').value)}catch(_){}render()};
+ $('#ks').onclick=()=>{try{localStorage.setItem('fuelform_gm',($('#gm').value.trim()||'gemini-3.1-flash-lite'));localStorage.setItem(keyName(prov()),$('#key').value.trim());toast('Saved')}catch(_){toast('Could not save')}};
+ $('#kc').onclick=()=>{try{localStorage.removeItem(keyName(prov()))}catch(_){}$('#key').value='';toast('Key removed')}}
+async function doReview(){
+ const out=$('#rout');
+ if(!getKey()){out.textContent=errMsg({code:'nokey'});return}
+ const ks=days().slice(-14);if(ks.length<3){out.textContent='Log at least 3 days first.';return}
+ const data=ks.map(k=>{const e=store[k],t=totals(e);return `${k} | weight ${e.weight==null?'-':e.weight} | steps ${e.steps==null?'-':e.steps} | sleep ${e.sleep==null?'-':e.sleep} | hunger ${e.hunger==null?'-':e.hunger} | kcal ${t.kcal?Math.round(t.kcal):'-'} | protein ${t.p?Math.round(t.p):'-'} | binge ${e.binge?'yes':'no'} | training: ${(e.training||'-').replace(/\s+/g,' ').slice(0,140)}`}).join('\n');
+ const prompt=`You are a supportive strength-and-nutrition coach inside a tracking app. The user's goals: reach 72 kg without losing muscle, build muscle, and stop binge eating. Their log is below (most recent last).
+Rules, follow strictly:
+- Never give calorie targets, deficits, or numbers to eat. Never suggest fasting, skipping meals, extra cardio or steps to make up for a big day, or "earning" food.
+- Never label days good or bad. Treat binge days as information, with no blame.
+- Focus on: lifting performance and consistency, recovery and sleep, regular meals with protein spread through the day, and what happened on the days before a binge episode (for example very low intake or a very large activity load right before). Describe patterns plainly and say they are patterns, not causes.
+- If binge episodes appear, close with one kind sentence suggesting a dietitian or therapist who works with binge eating.
+Format, plain text, under 230 words: "What's going well" (2 points), "Worth watching" (2 points), "This week" (3 small process goals about training, sleep, meal regularity).
+LOG:
+${data}`;
+ out.textContent='Thinking…';
+ try{out.textContent=await ai(prompt)}catch(err){out.textContent=errMsg(err)}
+}
+init();
+</script></body></html>
