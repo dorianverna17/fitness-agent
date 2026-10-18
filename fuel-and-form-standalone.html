@@ -67,9 +67,46 @@ let store={},cur=todayKey(),tab='today',photo=null,est=null;
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.h);toast.h=setTimeout(()=>t.classList.remove('on'),1800)}
 function getE(k){return store[k]||{date:k,meals:[],base:null}}
 function totals(e){const t={kcal:0,p:0,c:0,f:0,fi:0,s:0};[e.base].concat(e.meals||[]).forEach(m=>{if(!m)return;t.kcal+=m.kcal||0;t.p+=m.p||0;t.c+=m.c||0;t.f+=m.f||0;t.fi+=m.fi||0;t.s+=m.s||0});return t}
+let syncMsg='';
+const SU='fuelform_sheet_url',SK='fuelform_sheet_key';
+const sheetOn=()=>!!(ls(SU,'')&&ls(SK,''));
+function setStatus(m){syncMsg=m;const el=$('#sst');if(el)el.textContent=m;toast(m)}
+function saveLocal(){try{localStorage.setItem(LS,JSON.stringify(store))}catch(_){}}
+async function sheetCall(body){
+ const r=await fetch(ls(SU,''),{method:'POST',body:JSON.stringify(Object.assign({key:ls(SK,'')},body))});
+ const d=await r.json();if(d.error)throw new Error(d.error);return d;
+}
+function dayKey(s){const m=String(s==null?'':s).trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);return m?m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'):null}
+function keyToDay(k){const p=k.split('-');return +p[2]+'/'+ +p[1]+'/'+p[0]}
+function entryRow(e){
+ const t=totals(e),has=!!(t.kcal||t.p||t.c||t.f||t.fi||t.s),v=x=>has?x:'';
+ return {day:keyToDay(e.date),weight:e.weight!=null?e.weight:(e.weightRaw||''),training:e.training||'',steps:e.steps,kcal:v(t.kcal),protein:v(t.p),carbs:v(t.c),fat:v(t.f),fiber:v(t.fi),sat:v(t.s),hunger:e.hunger,sleep:e.sleep,binge:e.binge?'Yes':'No',notes:e.notes||''};
+}
+function rowToEntry(r){
+ const k=dayKey(r.day);if(!k)return null;
+ const e={date:k,meals:[],base:null},w=num(r.weight),wt=String(r.weight==null?'':r.weight).trim();
+ e.weight=w;if(w==null&&wt&&wt.toLowerCase()!=='no data')e.weightRaw=wt;
+ e.steps=num(r.steps);e.sleep=num(r.sleep);e.hunger=num(r.hunger);
+ const tr=String(r.training==null?'':r.training);e.training=(tr.trim()&&tr.trim().toLowerCase()!=='no data'&&tr.trim()!=='0')?tr:'';
+ e.notes=String(r.notes==null?'':r.notes);e.binge=/^yes/i.test(String(r.binge==null?'':r.binge).trim());
+ const kc=num(r.kcal);if(kc!=null||num(r.protein)!=null)e.base={kcal:kc||0,p:num(r.protein)||0,c:num(r.carbs)||0,f:num(r.fat)||0,fi:num(r.fiber)||0,s:num(r.sat)||0};
+ return e;
+}
 async function persist(e){
- store[e.date]=e;
- try{localStorage.setItem(LS,JSON.stringify(store))}catch(_){}
+ e.dirty=false;store[e.date]=e;saveLocal();
+ if(!sheetOn()){toast('Saved on this device');return}
+ try{await sheetCall({action:'upsert',row:entryRow(e)});setStatus('Saved to your sheet')}
+ catch(_){e.dirty=true;saveLocal();setStatus('Saved on this device only. Sheet sync failed.')}
+}
+async function syncFromSheet(){
+ if(!sheetOn())return;
+ setStatus('Syncing…');
+ try{
+  for(const k of Object.keys(store)){if(store[k].dirty){try{await sheetCall({action:'upsert',row:entryRow(store[k])});store[k].dirty=false}catch(_){}}}
+  const d=await sheetCall({action:'list'});
+  d.rows.forEach(r=>{const e=rowToEntry(r);if(e&&!(store[e.date]&&store[e.date].dirty))store[e.date]=e});
+  saveLocal();setStatus('Synced '+d.rows.length+' days from your sheet');render();
+ }catch(_){setStatus('Could not reach the sheet. Showing data saved on this device.')}
 }
 const KEYLS='fuelform_key';
 const ls=(k,d)=>{try{return localStorage.getItem(k)||d}catch(_){return d}};
@@ -104,7 +141,7 @@ async function aiJson(p,o){const t=await ai(p,Object.assign({},o,{json:true}));r
 function errMsg(e){const c=e&&e.code;return c==='nokey'?'Add your API key in the Coach tab first.':c==='badkey'?'That key or model name was rejected. Check both in the Coach tab.':c==='quota'?'Free limit reached, or that model is not free. Wait a bit or try another model name in the Coach tab.':c==='network'?'No connection. Check your internet and try again.':'The request failed. Try again in a moment.'}
 function init(){
  try{store=JSON.parse(localStorage.getItem(LS)||'{}')}catch(_){store={}}
- $('#day').value=cur;render();
+ $('#day').value=cur;render();syncFromSheet();
 }
 document.addEventListener('click',e=>{
  const t=e.target.closest('[data-t]');if(t){tab=t.dataset.t;render()}
@@ -120,6 +157,7 @@ function render(){
 }
 
 /* ---------- Today ---------- */
+const tv=v=>v?String(Math.round(v*100)/100):'';
 function viewToday(){
  const e=getE(cur),t=totals(e);
  const meals=(e.meals||[]).map((m,i)=>`<div class="meal"><div><b>${esc(m.name)}</b><div class="mut">${Math.round(m.kcal)} kcal · P ${r1(m.p||0)} · C ${r1(m.c||0)} · F ${r1(m.f||0)} (sat ${r1(m.s||0)}) · Fiber ${r1(m.fi||0)}</div></div><button class="x" data-del="${i}" aria-label="Remove meal">×</button></div>`).join('');
@@ -130,16 +168,16 @@ function viewToday(){
 <textarea id="mnote" rows="2" placeholder="e.g. about 180 g cooked rice, 2 tsp olive oil"></textarea>
 <button class="pri" id="est">Estimate</button>
 <div id="estout">${est?estHtml():''}</div></div>
-<div class="card"><h2>Logged today</h2>${meals||'<p class="mut">No meals yet.</p>'}
-${e.base?`<p class="mut">Imported day total: ${Math.round(e.base.kcal)} kcal</p>`:''}
-<p class="mut" style="margin-top:10px">Day total: <b>${Math.round(t.kcal)} kcal</b> · protein ${Math.round(t.p)} g · carbs ${Math.round(t.c)} g · fat ${Math.round(t.f)} g (sat ${Math.round(t.s)} g) · fiber ${Math.round(t.fi)} g</p></div>
 <div class="card" id="det"><h2>Day details</h2>
+<p class="mut">Day totals. Meals you add are summed here. Edit if something is off.</p>
+<div class="row3"><div><label for="tk">kcal</label><input id="tk" inputmode="decimal" value="${tv(t.kcal)}"></div><div><label for="tp">Protein g</label><input id="tp" inputmode="decimal" value="${tv(t.p)}"></div><div><label for="tc">Carbs g</label><input id="tc" inputmode="decimal" value="${tv(t.c)}"></div></div>
+<div class="row3"><div><label for="tf">Fat g</label><input id="tf" inputmode="decimal" value="${tv(t.f)}"></div><div><label for="ti">Fiber g</label><input id="ti" inputmode="decimal" value="${tv(t.fi)}"></div><div><label for="ts">Sat. fat g</label><input id="ts" inputmode="decimal" value="${tv(t.s)}"></div></div>
 <div class="row"><div><label for="w">Weight (kg)</label><input id="w" inputmode="decimal" value="${esc(e.weight)}"></div>
 <div><label for="st">Steps</label><input id="st" inputmode="numeric" value="${esc(e.steps)}"></div></div>
 <div class="row"><div><label for="sl">Sleep (hours)</label><input id="sl" inputmode="decimal" value="${esc(e.sleep)}"></div>
-<div><label for="hu">Hunger before sleep (1-10)</label><input id="hu" inputmode="numeric" value="${esc(e.hunger)}"></div></div>
+<div><label for="hu">Hunger before sleep (1-5)</label><input id="hu" inputmode="numeric" value="${esc(e.hunger)}"></div></div>
 <label for="tr">Training</label><textarea id="tr" rows="3" placeholder="e.g. legs & abs, 5 x legs, 4 x abs, heavy. 60 min spin bike">${esc(e.training)}</textarea>
-<label for="nt">Notes</label><textarea id="nt" rows="2" placeholder="Anything about the day">${esc(e.notes)}</textarea>
+<label for="nt">Notes on what was eaten</label><textarea id="nt" rows="2" placeholder="Anything about the day">${esc(e.notes)}</textarea>
 <label class="chk"><input type="checkbox" id="bg" ${e.binge?'checked':''}><span>A binge episode happened. Logging it is just data, not a fail.</span></label></div>`;
 }
 function estHtml(){
@@ -158,7 +196,10 @@ function bindToday(){
  document.querySelectorAll('[data-del]').forEach(b=>b.onclick=()=>{const e=getE(cur);e.meals.splice(+b.dataset.del,1);persist(e);render()});
  $('#det').addEventListener('change',()=>{
   const e=getE(cur);e.weight=num($('#w').value);e.steps=num($('#st').value);e.sleep=num($('#sl').value);e.hunger=num($('#hu').value);
-  e.training=$('#tr').value;e.notes=$('#nt').value;e.binge=$('#bg').checked;persist(e);toast('Saved');
+  e.training=$('#tr').value;e.notes=$('#nt').value;e.binge=$('#bg').checked;
+  const q=['#tk','#tp','#tc','#tf','#ti','#ts'].map(i=>num($(i).value));
+  e.base=q.some(v=>v!=null)?{kcal:q[0]||0,p:q[1]||0,c:q[2]||0,f:q[3]||0,fi:q[4]||0,s:q[5]||0}:null;e.meals=[];
+  persist(e);
  });
 }
 async function shrink(file){
@@ -185,9 +226,11 @@ Return ONLY JSON: {"name":"short meal name","items":"one line listing each item 
 function manualBtn(){return '<button class="sec" id="manual" style="margin-top:8px">Enter a meal by hand</button>'}
 function manual(){est={name:'Meal',items:'',kcal:0,low:0,high:0,p:0,c:0,f:0,fi:0,s:0,conf:'manual'};$('#estout').innerHTML=estHtml();$('#addm').onclick=addMeal}
 function addMeal(){
- const e=getE(cur);e.meals=e.meals||[];
- e.meals.push({name:$('#en').value||'Meal',kcal:num($('#ek').value)||0,p:num($('#ep').value)||0,c:num($('#ec').value)||0,f:num($('#ef').value)||0,fi:num($('#ei').value)||0,s:num($('#es').value)||0});
- persist(e);est=null;photo=null;render();toast('Meal added');
+ const e=getE(cur),t=totals(e),R=v=>Math.round(v*100)/100;
+ const m={name:$('#en').value||'Meal',kcal:num($('#ek').value)||0,p:num($('#ep').value)||0,c:num($('#ec').value)||0,f:num($('#ef').value)||0,fi:num($('#ei').value)||0,s:num($('#es').value)||0};
+ e.base={kcal:R(t.kcal+m.kcal),p:R(t.p+m.p),c:R(t.c+m.c),f:R(t.f+m.f),fi:R(t.fi+m.fi),s:R(t.s+m.s)};e.meals=[];
+ e.notes=[e.notes,m.name+' ('+Math.round(m.kcal)+' kcal)'].filter(Boolean).join(' | ');
+ persist(e);est=null;photo=null;render();
 }
 
 /* ---------- Trend ---------- */
@@ -212,39 +255,20 @@ function viewTrend(){
 <p class="mut">Single weigh-ins swing with water and food. Judge direction over weeks, not days.</p></div>
 <div class="card"><h2>Last 14 days</h2><div class="scroll"><table><tr><th>Day</th><th>kcal</th><th>Steps</th><th>Sleep h</th></tr>${rows||'<tr><td colspan="4" class="mut">Nothing logged yet.</td></tr>'}</table></div>
 <p class="mut"><span class="dot"></span>marks a binge episode</p></div>
-<div class="card"><h2>Your sheet</h2><p class="mut">Everything is stored in this browser on this phone, so export a backup now and then. Import a CSV downloaded from your original sheet (File, Download, CSV). Your original is never changed. Export gives a new CSV with the same columns.</p>
-<label class="photo" style="padding:14px"><input type="file" accept=".csv,text/csv" id="imp"><span>Import CSV</span></label>
-<button class="pri" id="exp">Export CSV</button></div>`;
+<div class="card"><h2>Your Google Sheet</h2><p class="mut">The sheet is the source of truth. Paste the web app link and secret code from your sheet's script.</p>
+<label for="su">Web app link</label><input id="su" autocomplete="off" placeholder="https://script.google.com/macros/s/.../exec" value="${esc(ls(SU,''))}">
+<label for="sk">Secret code</label><input id="sk" type="password" autocomplete="off" value="${esc(ls(SK,''))}">
+<button class="pri" id="ss">Save and sync</button>
+<p class="mut" id="sst">${esc(syncMsg)}</p>
+<button class="sec" id="exp">Export CSV backup</button></div>`;
 }
-function bindTrend(){$('#imp').onchange=doImport;$('#exp').onclick=doExport}
-function parseCSV(t){const rows=[];let r=[],f='',q=false;
- for(let i=0;i<t.length;i++){const c=t[i];
-  if(q){if(c==='"'){if(t[i+1]==='"'){f+='"';i++}else q=false}else f+=c}
-  else if(c==='"')q=true;else if(c===','){r.push(f);f=''}
-  else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;r.push(f);f='';rows.push(r);r=[]}else f+=c}
- if(f||r.length){r.push(f);rows.push(r)}return rows;
-}
-async function doImport(ev){
- const f=ev.target.files[0];if(!f)return;
- const rows=parseCSV(await f.text()),h=rows[0].map(x=>x.trim().toLowerCase());
- const ix=p=>h.findIndex(x=>x.startsWith(p));
- const C={d:ix('day'),w:ix('weight'),tr:ix('training'),st:ix('steps'),k:ix('kcal'),p:ix('protein'),c:ix('carbs'),f:ix('fat'),fi:ix('fiber'),hu:ix('hunger'),sl:ix('sleep'),b:ix('binge'),n:ix('notes'),s:ix('sat')};
- let n=0;
- for(const r of rows.slice(1)){
-  const m=(r[C.d]||'').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);if(!m)continue;
-  const k=m[3]+'-'+m[2].padStart(2,'0')+'-'+m[1].padStart(2,'0'),e=getE(k),g=i=>i<0?null:num(r[i]);
-  if(g(C.w)!=null)e.weight=g(C.w);if(g(C.st)!=null)e.steps=g(C.st);if(g(C.sl)!=null)e.sleep=g(C.sl);if(g(C.hu)!=null)e.hunger=g(C.hu);
-  if(C.tr>=0&&r[C.tr]&&r[C.tr]!=='no data')e.training=r[C.tr];
-  if(C.n>=0&&r[C.n])e.notes=r[C.n];
-  if(C.b>=0)e.binge=/^yes/i.test((r[C.b]||'').trim());
-  if(g(C.k)!=null)e.base={kcal:g(C.k)||0,p:g(C.p)||0,c:g(C.c)||0,f:g(C.f)||0,fi:g(C.fi)||0,s:g(C.s)||0};
-  await persist(e);n++;
- }
- toast(n+' days imported');render();
+function bindTrend(){
+ $('#exp').onclick=doExport;
+ $('#ss').onclick=()=>{try{localStorage.setItem(SU,$('#su').value.trim());localStorage.setItem(SK,$('#sk').value.trim())}catch(_){}syncFromSheet()};
 }
 function doExport(){
  const q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
- const hd=['Day','Weight (kg)','Training','Steps','kcal','Protein','Carbs','Fat','Fiber','Hunger (Before Sleep 1-10)','Sleep Time (hours)','Binge','Notes on what was eaten','Saturated fat'];
+ const hd=['Day','Weight (kg)','Training','Steps','kcal','Protein','Carbs','Fat','Fiber','Hunger (Before Sleep 1-5)','Sleep Time (hours)','Binge','Notes on what was eaten','Saturated fat'];
  const lines=[hd.map(q).join(',')];
  days().forEach(k=>{const e=store[k],t=totals(e),p=k.split('-'),meals=(e.meals||[]).map(m=>m.name).join('; ');
   lines.push([+p[2]+'/'+ +p[1]+'/'+p[0],e.weight,e.training,e.steps,t.kcal||'',t.p||'',t.c||'',t.f||'',t.fi||'',e.hunger,e.sleep,e.binge?'Yes':'No',[meals,e.notes].filter(Boolean).join(' | '),t.s||''].map(q).join(','))});

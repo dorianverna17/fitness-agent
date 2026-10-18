@@ -1,99 +1,93 @@
 # Fuel & Form (fitness-agent)
 
-A single-file web app for tracking food, training and recovery. You photograph a meal, an AI model estimates calories and macros, and everything is logged in a format that matches an existing Google Sheet.
+A single-file web app for tracking food, training and recovery. You photograph a meal, an AI model estimates calories and macros, and the day is saved straight into your Google Sheet, which is the single source of truth.
 
 Live: https://dorianverna17.github.io/fitness-agent/fuel-and-form-standalone.html
 
-## Current state
+## How it fits together
 
-One file, `fuel-and-form-standalone.html`: HTML, CSS and JavaScript together. No build step, no server code. Data is stored in the browser (localStorage). Cloud sync (Firebase) is not built yet.
-
-**Status:** code parses and has been written, but it has not been tested end to end against a real Gemini key yet. Laptop testing is in progress.
+- `fuel-and-form-standalone.html`: the whole app (HTML, CSS, JavaScript). No build step.
+- `sheet-api.gs`: a small Google Apps Script pasted into the sheet. It turns the sheet into a private API (list days, update or add a day).
+- Google Sheet: one row per day, same columns as the original sheet.
+- AI provider (Gemini free tier by default, or Claude): used only for meal estimates and the weekly review.
+- The browser keeps a local copy as a cache, so the app still opens when the sheet cannot be reached. Entries that failed to sync are marked and sent on the next sync.
 
 ## Milestones implemented
 
 ### Logging
-- [x] Meal logging from a photo plus an optional note with weights ("about 180 g rice, 2 tsp oil")
-- [x] AI estimate of kcal, protein, carbs, fat, saturated fat and fiber, with a kcal range and confidence level
-- [x] Every estimate is editable before it is saved; manual entry works without any AI key
-- [x] Carbs follow the EU convention (available carbs, fiber excluded and reported separately); kcal checked at 4/4/9/2 per g protein/carbs/fat/fiber
-- [x] Day details: weight, steps, sleep hours, hunger before sleep (1-5), training notes, free notes, binge-episode flag
-- [x] Any past day can be selected and edited with the date picker
-- [x] Photos are resized to about 1024 px before sending and are never stored
+- [x] Meal logging from a photo plus an optional note with weights
+- [x] AI estimate of kcal, protein, carbs, fat, saturated fat and fiber, with a range and confidence level
+- [x] Estimates are editable before saving; manual entry works without any AI key
+- [x] Carbs follow the EU convention (available carbs, fiber separate); kcal checked at 4/4/9/2 per g
+- [x] A meal is added into that day's totals and its name and kcal are appended to "Notes on what was eaten" (individual meals are not stored separately)
+- [x] Day details: weight, steps, sleep hours, hunger before sleep (1-5), training, notes, binge flag, and editable day totals
+- [x] Any past day can be opened and edited with the date picker
+- [x] Photos are resized before sending and never stored
 
-### Data
-- [x] Import from a CSV exported from the original Google Sheet (matches columns by header name; skips "no data" cells; moves text in the weight column to notes; ignores the free-text personal-details column)
-- [x] Re-importing is safe: days are matched by date and updated, not duplicated
-- [x] Export to CSV with the same columns as the original sheet, plus a new "Saturated fat" column at the end
-- [x] The original sheet is never modified (read-only source)
+### Data (Google Sheet)
+- [x] Sheet is the source of truth: the app loads every day on open and saves each change to the sheet
+- [x] Apps Script API with a secret code, only reading and writing the columns the app manages
+- [x] "Details about me", "Average kcal" and "Total Steps" columns are never read or changed
+- [x] Existing cells showing "no data" are left alone unless you enter a value
+- [x] Day column written as plain text so dates such as 5/10/2026 are never reinterpreted
+- [x] Local cache and unsent-changes queue for when the sheet is unreachable
+- [x] Export to CSV as a backup
 
 ### AI providers
-- [x] Gemini (free tier via Google AI Studio) as the default provider; model name is editable in the app
-- [x] Claude (paid API) as an alternative provider
-- [x] Provider choice, model name and API keys are saved per browser and sent only to the chosen provider
-- [x] Clear error messages for missing key, rejected key or model, free-limit reached, and no connection
+- [x] Gemini (free tier via Google AI Studio) as default, editable model name
+- [x] Claude (paid API) as an alternative
+- [x] Keys are stored per browser and sent only to the chosen provider
+- [x] Clear errors for missing key, rejected key or model, free limit reached, no connection
 
-### Views
-- [x] Trend tab: 7-day average weight line, last 14 days (kcal, steps, sleep), binge days marked neutrally
-- [x] Coach tab: weekly review of the last 14 days with "going well", "worth watching" and three small process goals
-- [x] Mobile-first layout, light and dark theme, works in desktop Chrome
-
-### Design principles
-- [x] No daily calorie target and no "calories left" counter
-- [x] No streaks, red marks or shame mechanics; difficult days are logged as plain data
-- [x] The coach never sets calorie targets or suggests making up for a big day; it focuses on training, sleep, regular meals and protein, and may suggest professional support when relevant
-- [x] Weight shown as a trend, not as a daily verdict
+### Views and design
+- [x] Trend tab: 7-day average weight, last 14 days, binge days marked neutrally
+- [x] Coach tab: weekly review with what is going well, what to watch, and three small process goals
+- [x] Mobile-first layout, light and dark theme
+- [x] No daily calorie target, no "calories left", no streaks or shame mechanics
+- [x] The coach never sets calorie targets or suggests making up for a big day
 
 ### Deployment
-- [x] Deployed on GitHub Pages as `fuel-and-form-standalone.html`
+- [x] GitHub Pages, file name `fuel-and-form-standalone.html` (not index.html)
 
 ## Still to do
 
-### Next: Firebase storage
-- [ ] Decide: reuse an existing Firebase project or create a new one
-- [ ] Enable Google sign-in and Firestore on the free (Spark) plan; do not link a billing account
-- [ ] Add the Firebase web config and SDK (loaded from a CDN, still one file)
-- [ ] Store one Firestore document per day under the signed-in user
-- [ ] Security rules so only the signed-in owner can read or write their data
-- [ ] One-time migration of existing browser data to Firestore
-- [ ] Import CSV writes to Firestore
-- [ ] Keep working offline and sync when back online
-- [ ] Keep the CSV export as a backup
+### Next
+- [ ] Make a copy of the original sheet, install `sheet-api.gs`, deploy it and paste the link and secret into the Trend tab (see below)
+- [ ] Test end to end: load, add a meal, edit a day, confirm the right row changes in the sheet
+- [ ] Upload the latest HTML to GitHub Pages with the same file name
+- [ ] Test Gemini estimates with real meal photos and confirm which model is free right now
 
-### Testing and fixes
-- [ ] Upload the latest file and test Gemini estimates with real meal photos
-- [ ] Check the importer against the real CSV (row count, weights, notes, binge flags)
-- [ ] Verify the Gemini model name that currently has free-tier access (it can change)
-- [ ] Review estimate accuracy against known weights and tune the prompt
-
-### Privacy and safety
-- [ ] The coach prompt currently contains the user's goals in the HTML source. If the repository is public, move personal goals into an in-app setting stored with the user's data
-- [ ] API keys live in the browser. Consider a restricted key with a spend limit; hiding keys fully needs a server (Firebase Functions requires the paid plan)
-
-### Features
-- [ ] Saved meals and favorites so common meals reuse known weights
-- [ ] Goals and objectives screen with weekly process goals
-- [ ] Better training log: structured sets per muscle group, strength trends
+### Improvements
+- [ ] Optional "Saturated fat" column at the end of the sheet so it survives reloads (the app uses it if present)
+- [ ] Saved meals and favorites that reuse known weights
+- [ ] Goals and objectives screen
+- [ ] Structured training log and strength trends
 - [ ] Charts for protein regularity, sleep and steps
-- [ ] Optional step and sleep import from a phone or watch
-- [ ] Optional two-way sync with Google Sheets
-- [ ] Installable app: web manifest and service worker (Add to Home screen with offline support)
-- [ ] Clean-up of the older claude.ai-hosted version, which no longer matches this one
+- [ ] Installable app (manifest and service worker)
+- [ ] Move personal goals out of the coach prompt in the source into an in-app setting (the source is public if the repo is public)
+- [ ] Retire the older claude.ai-hosted version
 
-## Running and deploying
+### Known limits
+- Loading and saving take a second or two (Google Apps Script)
+- The secret code is the only protection on the script link; anyone with both could read or write the sheet
+- If the same row is edited in the sheet and the app at the same moment, the last save wins
+- API keys and the secret are stored in the browser
 
-1. Keep `fuel-and-form-standalone.html` in the repo (the deployed URL depends on the file name).
-2. Commit and push; GitHub Pages serves the new version after a minute or two.
-3. Open the page, go to the Coach tab, choose a provider, paste a key and tap Save.
-4. On the Trend tab, import the CSV exported from the Google Sheet (File, Download, CSV).
+## Connect your sheet
 
-## Data and privacy
+1. In Google Sheets, File > Make a copy (recommended, so the original stays untouched as a backup). Keep the same columns.
+2. In the copy: Extensions > Apps Script. Replace the code with `sheet-api.gs`.
+3. Change `SECRET` at the top to a long random text.
+4. Deploy > New deployment > type Web app > Execute as: Me > Who has access: Anyone. Authorize when asked and copy the web app link.
+5. In the app, Trend tab > Your Google Sheet: paste the link and the secret, then Save and sync.
+6. If you edit the script later, create a new deployment version so the changes go live.
 
-- Logs, settings and keys are stored in this browser only (localStorage) until Firebase is added.
-- Clearing site data or switching browser or device loses them, so export a CSV regularly.
-- When you use an AI feature, the photo and note (or a text summary of recent days for the review) are sent to the selected provider. Check that provider's terms for how free-tier data is used.
-- Nothing is sent to any other server.
+## Sheet columns
 
-## Data format
+Day (d/m/yyyy), Weight (kg), Training, Steps, kcal, Protein, Carbs, Fat, Fiber, Average kcal, Total Steps, Hunger (Before Sleep 1-5), Sleep Time (hours), Binge, Notes on what was eaten. Optional: Saturated fat. Columns are matched by header name, in any order.
 
-CSV columns (matching the original sheet): Day (d/m/yyyy), Weight (kg), Training, Steps, kcal, Protein, Carbs, Fat, Fiber, Hunger (Before Sleep 1-5), Sleep Time (hours), Binge, Notes on what was eaten, Saturated fat.
+## Privacy
+
+- Data goes to your Google Sheet and a local cache in the browser.
+- When you use an AI feature, the photo and note (or a text summary of recent days for the review) are sent to the chosen provider. Check that provider's terms for free-tier data use.
+- Nothing is sent anywhere else.
